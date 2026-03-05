@@ -1,0 +1,10 @@
+# Rust build artifacts
+/target
+
+# Environment files (contain API keys)
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
