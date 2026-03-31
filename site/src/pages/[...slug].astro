@@ -1,0 +1,28 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../layouts/Base.astro';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs
+    .filter((doc) => doc.id !== 'index')
+    .map((doc) => ({
+      params: { slug: doc.id },
+      props: { doc },
+  }));
+}
+
+const { doc } = Astro.props;
+const { Content } = await render(doc);
+---
+
+<BaseLayout title={doc.data.title} description={doc.data.description}>
+  <div class="content-header" style="margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+    <h1 style="font-size: 2.5rem; margin-top: 0; color: var(--accent-color);">{doc.data.title}</h1>
+    {doc.data.description && <p style="font-size: 1.2rem; color: #8b949e; margin: 0;">{doc.data.description}</p>}
+  </div>
+
+  <div class="markdown-body" style="font-size: 1.05rem;">
+    <Content />
+  </div>
+</BaseLayout>

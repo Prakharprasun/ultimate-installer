@@ -1,0 +1,82 @@
+---
+import '../styles/global.css';
+import { getCollection } from 'astro:content';
+
+const allDocs = await getCollection('docs');
+const navItems = allDocs.sort((a, b) => a.data.order - b.data.order);
+
+const { title, description } = Astro.props;
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | Ultimate Installer</title>
+    {description && <meta name="description" content={description} />}
+  </head>
+  <body>
+    <!-- Banner -->
+    <div class="banner">
+      🚧 Under Active Development — <a href="/whats-done">See What's Done</a>
+    </div>
+
+    <!-- Header / Nav -->
+    <header>
+      <div class="nav-container">
+        <a href="/" class="nav-brand">
+          <img src="/logo.png" alt="Ultimate Installer Logo" />
+          Ultimate Installer
+        </a>
+        <nav class="nav-links">
+          {navItems.map((item) => {
+            const href = item.id === 'index' ? '/' : `/${item.id}`;
+            const isActive = Astro.url.pathname === href || Astro.url.pathname === href + '/';
+            return (
+              <a href={href} class={isActive ? "active" : ""}>
+                {item.data.title}
+              </a>
+            );
+          })}
+          <a href="https://github.com/Prakharprasun/ultimate-installer" target="_blank" rel="noopener noreferrer">GitHub ⭐</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+      <slot />
+    </main>
+
+    <!-- Footer -->
+    <footer>
+      <p>Open Source · AGPL-3.0 · Non-Commercial</p>
+      <p style="margin-top: 0.5rem; font-size: 0.8rem;">Built with Astro</p>
+    </footer>
+
+    <!-- Global Copy Button Logic -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const preBlocks = document.querySelectorAll("pre");
+        preBlocks.forEach((pre) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "code-wrapper";
+          pre.parentNode.insertBefore(wrapper, pre);
+          wrapper.appendChild(pre);
+          
+          const btn = document.createElement("button");
+          btn.className = "copy-btn";
+          btn.innerText = "Copy";
+          wrapper.appendChild(btn);
+          
+          btn.addEventListener("click", async () => {
+            const code = pre.querySelector("code").innerText;
+            await navigator.clipboard.writeText(code);
+            btn.innerText = "Copied!";
+            setTimeout(() => { btn.innerText = "Copy"; }, 2000);
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
