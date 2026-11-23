@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -42,7 +43,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest       # Linux x86_64
-          - macos-latest        # macOS arm64 (GitHub's default is now M1)
+          - macos-latest        # macOS arm64 (Apple Silicon)
           - windows-latest      # Windows x86_64
     steps:
       - uses: actions/checkout@v4
@@ -54,3 +55,67 @@ jobs:
         run: cargo build --all-features
       - name: Run tests
         run: cargo test --all-features
+      - name: Verify Windows supported-platforms message
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $output = & ./target/debug/ulti.exe "install ripgrep and fd" --dry-run 2>&1
+          Write-Host $output
+          if ($LASTEXITCODE -eq 0) {
+            throw "Expected non-zero exit code on Windows"
+          }
+          if (-not ($output -match "macOS" -and $output -match "Ubuntu")) {
+            throw "Expected supported platforms message on Windows"
+          }
+
+  demo-e2e:
+    name: Live Demo E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: e2e-${{ matrix.os }}
+      - name: Build release binary
+        run: cargo build --release
+      - name: Run live Ubuntu demo flow
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "=== OS Version ==="
+          cat /etc/os-release
+          echo "=== Refresh apt index (disposable runner) ==="
+          sudo apt-get update -qq
+          echo "=== Initial Tool State ==="
+          which rg fdfind || true
+          echo "=== Dry Run Preview ==="
+          ./target/release/ulti "install ripgrep and fd" --dry-run
+          echo "=== Approved Install ==="
+          printf 'y\n' | ./target/release/ulti "install ripgrep and fd"
+          echo "=== Verified Binaries ==="
+          rg --version
+          fdfind --version
+          echo "=== Repeat Run (Nothing to Install) ==="
+          ./target/release/ulti "install ripgrep and fd"
+      - name: Run live macOS demo flow
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo "=== OS Version ==="
+          sw_vers
+          echo "=== Initial Tool State ==="
+          which brew rg fd || true
+          echo "=== Dry Run Preview ==="
+          ./target/release/ulti "install ripgrep and fd" --dry-run
+          echo "=== Approved Install ==="
+          printf 'y\n' | ./target/release/ulti "install ripgrep and fd"
+          echo "=== Verified Binaries ==="
+          rg --version
+          fd --version
+          echo "=== Repeat Run (Nothing to Install) ==="
+          ./target/release/ulti "install ripgrep and fd"
