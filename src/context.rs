@@ -6,8 +6,8 @@ use crate::SystemState;
 
 /// Known package manager binaries to probe for.
 const KNOWN_PACKAGE_MANAGERS: &[&str] = &[
-    "apt", "brew", "pacman", "dnf", "yay", "nix", "zypper", "snap", "flatpak", "port", "emerge",
-    "apk", "pkg", "winget", "choco", "scoop",
+    "apt", "apt-get", "brew", "pacman", "dnf", "yay", "nix", "zypper", "snap", "flatpak", "port",
+    "emerge", "apk", "pkg", "winget", "choco", "scoop",
 ];
 
 /// Detect which package managers are available on $PATH.
@@ -19,8 +19,22 @@ pub fn detect_package_managers() -> Vec<String> {
         .collect()
 }
 
+/// Check whether a specific executable is available on $PATH.
+pub fn has_executable(name: &str) -> bool {
+    which::which(name).is_ok()
+}
+
 /// Detect the current OS as a normalised slug.
+///
+/// Honors `ULTI_OS_OVERRIDE` when set (used for cross-platform CLI testing with fake binaries).
 pub fn detect_os() -> String {
+    if let Ok(override_os) = std::env::var("ULTI_OS_OVERRIDE") {
+        let trimmed = override_os.trim().to_ascii_lowercase();
+        if !trimmed.is_empty() {
+            return trimmed;
+        }
+    }
+
     let info = sysinfo::System::new();
     let name = sysinfo::System::name().unwrap_or_default().to_lowercase();
     let _ = info; // sysinfo::System::name() is a static method
@@ -39,6 +53,10 @@ pub fn detect_os() -> String {
         "windows".into()
     } else if !name.is_empty() {
         name.replace(' ', "_")
+    } else if cfg!(target_os = "macos") {
+        "macos".into()
+    } else if cfg!(target_os = "windows") {
+        "windows".into()
     } else {
         "unknown".into()
     }
@@ -106,7 +124,6 @@ mod tests {
     fn detect_package_managers_returns_vec() {
         // This will find whatever is on the current machine — just assert it doesn't panic.
         let managers = detect_package_managers();
-        // On macOS CI, brew is likely present; on Linux, apt. But we can't assert specifics.
         assert!(
             managers.is_empty() || !managers.is_empty(),
             "should return a vec (even if empty)"

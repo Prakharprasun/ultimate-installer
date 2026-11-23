@@ -1,32 +1,70 @@
-# Ultimate Installer
+# Ultimate Installer (`ulti`)
 
-A high-performance, **Rust-powered** CLI that treats LLMs not as chatbots, but as **natural language compilers** — translating user intent directly into safe, executable shell scripts. By combining a **Global Bloom Filter**, a **Universal Script Cache**, and a **multi-model pipeline**, it creates a community-verified installation engine that gets faster and cheaper the more it's used.
+A **Rust-powered** CLI that turns explicit or natural-language setup requests into safe, reviewed, verified package installations.
 
 ---
 
-## Installation
+## Quick Start (Build & Run from Source)
 
-| | Name | Why |
-| --- | --- | --- |
-| **Crate** (crates.io) | `ultimate-installer` | Descriptive, unique, Googleable |
-| **Binary** (`[[bin]]`) | `ulti` | Short, typeable, day-to-day command |
+### Prerequisites
+- Rust toolchain (`cargo`, `rustc` — Rust 2024 edition)
+- **macOS**: [Homebrew](https://brew.sh) (`brew` on `PATH`)
+- **Ubuntu**: `apt-get` (and `sudo` when running as a non-root user)
+- *(Windows compiles cleanly and reports the supported install platforms.)*
 
-### Via crates.io
-
-```bash
-cargo install ultimate-installer
-# Then use it:
-ulti "install neofetch"
-```
-
-### Via GitHub (curl)
+### Build & Run
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Prakharprasun/ultimate-installer/main/install.sh | sh
+git clone https://github.com/Prakharprasun/ultimate-installer.git
+cd ultimate-installer
+cargo build --release
+
+# Preview without making changes (no API key needed):
+./target/release/ulti "install ripgrep and fd" --dry-run
+
+# Run interactively with approval prompt and version verification:
+./target/release/ulti "install ripgrep and fd"
+
+# Or run directly via cargo:
+cargo run -- "install ripgrep and fd" --dry-run
 ```
 
-> [!NOTE]
-> Since this is the "Ultimate Installer," it should eventually be able to install itself via `ulti "install ulti"`.
+### Supported Catalog (Current Build)
+
+| Tool ID | Aliases | macOS (Homebrew) | Ubuntu (`apt-get`) | Notes |
+| --- | --- | --- | --- | --- |
+| `ripgrep` | `ripgrep`, `rg` | pkg `ripgrep`, bin `rg` | pkg `ripgrep`, bin `rg` | Verified via `rg --version` |
+| `fd` | `fd`, `fdfind`, `fd-find` | pkg `fd`, bin `fd` | pkg `fd-find`, bin `fdfind` | On Ubuntu, run `fdfind` (or `alias fd=fdfind`) per [upstream fd docs](https://github.com/sharkdp/fd#installation) |
+
+### Descriptive Requests with OpenAI (Optional)
+
+Explicit requests like `ulti "install ripgrep and fd"` run **100% locally** with no API key.
+
+For descriptive requests such as:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+./target/release/ulti "Set me up with ripgrep for searching text and fd for finding files"
+```
+
+- Uses OpenAI's documented **Structured Outputs** (`response_format: { type: "json_schema" }`) with default tested model **`gpt-4o-mini`** (overridable via `OPENAI_MODEL`).
+- The model may only return canonical tool IDs from the local catalog (`ripgrep`, `fd`) or `unsupported`. All responses are strictly validated in Rust (`deny_unknown_fields`); unsupported/mixed requests produce zero installs.
+- `OPENAI_API_KEY` is sent only to OpenAI's HTTPS endpoint, redacted in debug output, and stripped from all child process environments.
+- See [docs/api-keys.md](./docs/api-keys.md) for details.
+
+### Verification & Tests
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
+
+---
+
+## Roadmap (Planned for Future Iterations)
+
+The architecture below describes the longer-term vision. The **shared Universal Registry / Bloom filter cache**, **four-model pipeline (Talker → Doer → Checker → Fixer)**, **automatic multi-key rotation**, and **additional providers (Anthropic, Gemini, Groq, OpenRouter, Ollama)** are on the roadmap and are **not** active in the current build. See [docs/whats-done.md](./docs/whats-done.md) for the exact current status.
 
 ---
 
@@ -359,7 +397,7 @@ Rust forces explicit handling of every error case that TypeScript papers over. O
 
 ## Status
 
-> **Scaffolded & CI-Ready** — The Rust project is initialised with module structure, 21 passing tests (unit + integration), and GitHub Actions CI/CD. Next: implement the Talker → Doer → Checker → Fixer pipeline and the SQLite caching layer.
+> **Working Demo Built** — Explicit local install workflow (`ripgrep` and `fd`) on macOS (Homebrew) and Ubuntu (`apt-get`), `--dry-run`, explicit approval, post-install binary verification, OpenAI Structured Outputs (`gpt-4o-mini`) for descriptive requests, and automated unit + CLI boundary + provider test-double test suite. Shared registry, four-model pipeline, automatic key rotation, and additional providers remain on the roadmap.
 
 - 📦 Repo: [github.com/Prakharprasun/ultimate-installer](https://github.com/Prakharprasun/ultimate-installer)
 - 📜 License: [AGPL-3.0](./LICENSE)

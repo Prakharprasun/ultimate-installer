@@ -1,8 +1,13 @@
 pub mod auth;
+pub mod catalog;
 pub mod context;
+pub mod executor;
 pub mod fallback;
 pub mod hash;
 pub mod models;
+pub mod openai;
+pub mod parser;
+pub mod planner;
 pub mod providers;
 
 /// The fingerprint of the user's machine + intent, used as the Bloom filter key.
