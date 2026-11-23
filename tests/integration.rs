@@ -260,9 +260,11 @@ mod cli_boundary_tests {
         extra_envs: &[(&str, &str)],
         stdin_bytes: Option<&[u8]>,
     ) -> Output {
+        let default_cache_dir = path_dir.join(".ulti-cache");
         let mut cmd = Command::new(ulti_bin());
         cmd.args(args)
             .env("PATH", path_dir)
+            .env("ULTI_CACHE_DIR", &default_cache_dir)
             .env("ULTI_ASSUME_NON_ROOT", "1")
             .env_remove("OPENAI_API_KEY")
             .env_remove("OPENAI_BASE_URL")
@@ -375,7 +377,7 @@ exit 0
 
         assert!(out.status.success());
         let stdout = String::from_utf8_lossy(&out.stdout);
-        assert!(stdout.contains("brew install ripgrep fd"));
+        assert!(stdout.contains("brew install fd ripgrep"));
         assert!(stdout.contains("Dry run complete"));
         assert!(
             !log_file.exists(),
@@ -471,7 +473,7 @@ exit 0
         assert!(stdout1.contains("fd 10.2.0 (fake)"));
 
         let logged = fs::read_to_string(&log_file).unwrap();
-        assert_eq!(logged.trim(), "brew install ripgrep fd");
+        assert_eq!(logged.trim(), "brew install fd ripgrep");
 
         // Run 2: repeat request with EOF stdin (must exit 0 without prompting or running brew)
         let out2 = run_ulti(
@@ -532,7 +534,7 @@ exit 0
             .lines()
             .map(ToString::to_string)
             .collect();
-        assert_eq!(lines, vec!["brew install ripgrep fd", "brew install fd"]);
+        assert_eq!(lines, vec!["brew install fd ripgrep", "brew install fd"]);
     }
 
     #[test]
@@ -553,14 +555,14 @@ exit 0
             String::from_utf8_lossy(&out.stderr)
         );
         let stdout = String::from_utf8_lossy(&out.stdout);
-        assert!(stdout.contains("sudo apt-get install -y ripgrep fd-find"));
+        assert!(stdout.contains("sudo apt-get install -y fd-find ripgrep"));
         assert!(stdout.contains("fdfind"));
         assert!(stdout.contains("ripgrep 14.1.0 (ubuntu-fake)"));
         assert!(stdout.contains("fdfind 9.0.0 (ubuntu-fake)"));
 
         let logged = fs::read_to_string(&log_file).unwrap();
-        assert!(logged.contains("sudo apt-get install -y ripgrep fd-find"));
-        assert!(logged.contains("apt-get install -y ripgrep fd-find"));
+        assert!(logged.contains("sudo apt-get install -y fd-find ripgrep"));
+        assert!(logged.contains("apt-get install -y fd-find ripgrep"));
     }
 
     #[test]
@@ -633,7 +635,7 @@ exit 0
 
         let stdout = String::from_utf8_lossy(&out.stdout);
         let stderr = String::from_utf8_lossy(&out.stderr);
-        assert!(stdout.contains("brew install ripgrep fd"));
+        assert!(stdout.contains("brew install fd ripgrep"));
         assert!(stdout.contains("ripgrep 14.1.0 (fake)"));
         assert!(stdout.contains("fd 10.2.0 (fake)"));
         assert!(
@@ -677,5 +679,315 @@ exit 0
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(stderr.contains("OPENAI_API_KEY"));
         assert!(!log_file.exists());
+    }
+
+    #[test]
+    fn cli_aliases_and_reordered_tools_share_spec_and_label_previously_verified() {
+        let tmp = TempDir::new().unwrap();
+        let log_file = tmp.path().join("cmd.log");
+        let env_log = tmp.path().join("env.log");
+        install_fake_brew(tmp.path(), &log_file, &env_log, "success");
+
+        // Run 1: install with "ripgrep and fd"
+        let out1 = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"y\n"),
+        );
+        assert!(out1.status.success());
+        assert!(
+            !String::from_utf8_lossy(&out1.stdout).contains("previously verified locally"),
+            "first run must not claim prior verification"
+        );
+
+        // Remove installed fake binaries to simulate a fresh check on the same machine
+        fs::remove_file(tmp.path().join("rg")).unwrap();
+        fs::remove_file(tmp.path().join("fd")).unwrap();
+
+        // Run 2: reordered aliases ("fd-find and rg") must hit the exact same spec & command
+        let out2 = run_ulti(
+            &["install fd-find and rg", "--dry-run"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            None,
+        );
+        assert!(out2.status.success());
+        let stdout2 = String::from_utf8_lossy(&out2.stdout);
+        assert!(stdout2.contains("brew install fd ripgrep"));
+        assert!(stdout2.contains("previously verified locally (succeeded 1 time(s))"));
+
+        let db_path = tmp.path().join(".ulti-cache").join("cache.db");
+        let conn = rusqlite::Connection::open(db_path).unwrap();
+        let spec_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM install_specs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(spec_count, 1);
+    }
+
+    #[test]
+    fn cli_full_and_partial_state_installs_share_spec_with_distinct_command_records() {
+        let tmp = TempDir::new().unwrap();
+        let log_file = tmp.path().join("cmd.log");
+        let env_log = tmp.path().join("env.log");
+        install_fake_brew(tmp.path(), &log_file, &env_log, "success");
+
+        // Run 1: full install of both tools (brew install fd ripgrep)
+        let out1 = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"y\n"),
+        );
+        assert!(out1.status.success());
+
+        // Remove only fd; rg remains installed
+        fs::remove_file(tmp.path().join("fd")).unwrap();
+
+        // Run 2: same request now plans only `brew install fd` (distinct command for same spec)
+        let out2 = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"y\n"),
+        );
+        assert!(out2.status.success());
+        let stdout2 = String::from_utf8_lossy(&out2.stdout);
+        assert!(stdout2.contains("brew install fd"));
+        assert!(
+            !stdout2.contains("previously verified locally"),
+            "distinct command must not be labeled previously verified before running"
+        );
+
+        let db_path = tmp.path().join(".ulti-cache").join("cache.db");
+        let conn = rusqlite::Connection::open(db_path).unwrap();
+        let spec_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM install_specs", [], |r| r.get(0))
+            .unwrap();
+        let cmd_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM verified_commands", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(spec_count, 1, "both runs share one canonical install spec");
+        assert_eq!(
+            cmd_count, 2,
+            "full install and partial-state install retain separate command records"
+        );
+    }
+
+    #[test]
+    fn cli_non_success_outcomes_never_create_or_increment_cache() {
+        let tmp = TempDir::new().unwrap();
+        let log_file = tmp.path().join("cmd.log");
+        let env_log = tmp.path().join("env.log");
+        install_fake_brew(tmp.path(), &log_file, &env_log, "partial_rg_only");
+
+        // Dry run, cancel, and partial failure must create zero records
+        let _ = run_ulti(
+            &["install ripgrep and fd", "--dry-run"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            None,
+        );
+        let _ = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"n\n"),
+        );
+        let out_partial = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"y\n"),
+        );
+        assert!(!out_partial.status.success());
+
+        let db_path = tmp.path().join(".ulti-cache").join("cache.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let cmd_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM verified_commands", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(cmd_count, 0, "non-success outcomes must write zero records");
+
+        // Now remove rg, switch brew to success, and complete one verified install
+        fs::remove_file(tmp.path().join("rg")).unwrap();
+        install_fake_brew(tmp.path(), &log_file, &env_log, "success");
+        let out_ok = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            Some(b"y\n"),
+        );
+        assert!(out_ok.status.success());
+
+        // Repeat no-op run must exit 0 and NOT increment success_count
+        let out_noop = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[("ULTI_OS_OVERRIDE", "macos")],
+            None,
+        );
+        assert!(out_noop.status.success());
+        assert!(String::from_utf8_lossy(&out_noop.stdout).contains("Nothing to install"));
+
+        let success_count: i64 = conn
+            .query_row(
+                "SELECT success_count FROM verified_commands LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            success_count, 1,
+            "no-op repeat run must not increment count"
+        );
+    }
+
+    #[tokio::test]
+    async fn cli_descriptive_request_cache_hit_works_without_key_and_zero_provider_calls() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let tmp = TempDir::new().unwrap();
+        let log_file = tmp.path().join("cmd.log");
+        let env_log = tmp.path().join("env.log");
+        install_fake_brew(tmp.path(), &log_file, &env_log, "success");
+
+        // Counting mock OpenAI server that handles multiple connections if called
+        let request_counter = Arc::new(AtomicUsize::new(0));
+        let counter_clone = Arc::clone(&request_counter);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/v1/chat/completions");
+
+        let body = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "content": "{\"intent\":\"install\",\"tools\":[\"ripgrep\",\"fd\"],\"reason\":\"Matched catalog\"}"
+                }
+            }]
+        })
+        .to_string();
+
+        let server_task = tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    break;
+                };
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+                let mut buf = vec![0u8; 8192];
+                let _ = socket.read(&mut buf).await;
+                let http_resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = socket.write_all(http_resp.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            }
+        });
+
+        let prompt = "Set me up with ripgrep for searching text and fd for finding files";
+        let path_buf = tmp.path().to_path_buf();
+
+        // Process 1: resolves through mock provider (count becomes 1) and persists to SQLite
+        let path1 = path_buf.clone();
+        let url1 = url.clone();
+        let out1 = tokio::task::spawn_blocking(move || {
+            run_ulti(
+                &[prompt],
+                &path1,
+                &[
+                    ("ULTI_OS_OVERRIDE", "macos"),
+                    ("OPENAI_API_KEY", "sk-fake-descriptive-cache-key"),
+                    ("OPENAI_BASE_URL", &url1),
+                    ("ULTI_ALLOW_INSECURE_LOCAL_PROVIDER", "1"),
+                ],
+                Some(b"y\n"),
+            )
+        })
+        .await
+        .unwrap();
+        assert!(
+            out1.status.success(),
+            "stderr: {}",
+            String::from_utf8_lossy(&out1.stderr)
+        );
+        assert_eq!(request_counter.load(Ordering::SeqCst), 1);
+
+        // Remove binaries so Process 2 builds a real install plan + preview
+        fs::remove_file(tmp.path().join("rg")).unwrap();
+        fs::remove_file(tmp.path().join("fd")).unwrap();
+
+        // Process 2: brand new process with OPENAI_API_KEY UNSET — must succeed with ZERO provider calls
+        let path2 = path_buf.clone();
+        let out2 = tokio::task::spawn_blocking(move || {
+            run_ulti(
+                &[prompt],
+                &path2,
+                &[("ULTI_OS_OVERRIDE", "macos")],
+                Some(b"y\n"),
+            )
+        })
+        .await
+        .unwrap();
+        assert!(
+            out2.status.success(),
+            "stderr: {}",
+            String::from_utf8_lossy(&out2.stderr)
+        );
+        let stdout2 = String::from_utf8_lossy(&out2.stdout);
+        assert!(stdout2.contains("brew install fd ripgrep"));
+        assert!(stdout2.contains("previously verified locally (succeeded 1 time(s))"));
+        assert_eq!(
+            request_counter.load(Ordering::SeqCst),
+            1,
+            "cached descriptive request must make zero provider calls"
+        );
+
+        // Process 3: tools now installed, OPENAI_API_KEY UNSET -> no-op exit 0, still zero provider calls
+        let path3 = path_buf.clone();
+        let out3 = tokio::task::spawn_blocking(move || {
+            run_ulti(&[prompt], &path3, &[("ULTI_OS_OVERRIDE", "macos")], None)
+        })
+        .await
+        .unwrap();
+        assert!(out3.status.success());
+        assert!(String::from_utf8_lossy(&out3.stdout).contains("Nothing to install"));
+        assert_eq!(request_counter.load(Ordering::SeqCst), 1);
+
+        server_task.abort();
+    }
+
+    #[test]
+    fn cli_unavailable_cache_degrades_gracefully_and_reports_save_failure() {
+        let tmp = TempDir::new().unwrap();
+        let log_file = tmp.path().join("cmd.log");
+        let env_log = tmp.path().join("env.log");
+        install_fake_brew(tmp.path(), &log_file, &env_log, "success");
+
+        // Point ULTI_CACHE_DIR at a regular file so SQLite open fails
+        let blocker = tmp.path().join("not-a-directory");
+        fs::write(&blocker, "blocked").unwrap();
+
+        let out = run_ulti(
+            &["install ripgrep and fd"],
+            tmp.path(),
+            &[
+                ("ULTI_OS_OVERRIDE", "macos"),
+                ("ULTI_CACHE_DIR", blocker.to_str().unwrap()),
+            ],
+            Some(b"y\n"),
+        );
+
+        assert!(
+            out.status.success(),
+            "install must still succeed when cache is unavailable"
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stdout.contains("ripgrep 14.1.0 (fake)"));
+        assert!(stdout.contains("fd 10.2.0 (fake)"));
+        assert!(stderr.contains("local verification history could not be saved"));
     }
 }

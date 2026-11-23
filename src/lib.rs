@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod cache;
 pub mod catalog;
 pub mod context;
 pub mod executor;
@@ -9,6 +10,7 @@ pub mod openai;
 pub mod parser;
 pub mod planner;
 pub mod providers;
+pub mod spec;
 
 /// The fingerprint of the user's machine + intent, used as the Bloom filter key.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

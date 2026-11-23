@@ -5,6 +5,7 @@ use std::io::{self, BufRead, Write};
 use std::process::{Command, ExitStatus};
 
 use crate::auth;
+use crate::cache::VerifiedCommandRecord;
 use crate::catalog::CatalogEntry;
 use crate::planner::{self, InstallCommand, InstallPlan, InstalledTool};
 
@@ -40,7 +41,11 @@ impl ExecutionOutcome {
 
 /// Print the plan preview, including installed tools, missing tools, OS package names,
 /// platform-specific binary notes, and the exact command requiring approval.
-pub fn print_plan(plan: &InstallPlan, out: &mut impl Write) -> io::Result<()> {
+pub fn print_plan(
+    plan: &InstallPlan,
+    prior_verification: Option<&VerifiedCommandRecord>,
+    out: &mut impl Write,
+) -> io::Result<()> {
     writeln!(out, "Platform: {}", plan.platform.display_name())?;
 
     if !plan.already_installed.is_empty() {
@@ -74,6 +79,13 @@ pub fn print_plan(plan: &InstallPlan, out: &mut impl Write) -> io::Result<()> {
     if let Some(cmd) = &plan.command {
         writeln!(out, "\nCommand to run:")?;
         writeln!(out, "  {}", cmd.display_line())?;
+        if let Some(record) = prior_verification {
+            writeln!(
+                out,
+                "  Status: previously verified locally (succeeded {} time(s))",
+                record.success_count
+            )?;
+        }
     }
 
     Ok(())
@@ -139,6 +151,7 @@ pub fn verify_requested_tools(
 pub fn execute_plan(
     plan: &InstallPlan,
     dry_run: bool,
+    prior_verification: Option<&VerifiedCommandRecord>,
     out: &mut impl Write,
     err: &mut impl Write,
     input: &mut impl BufRead,
@@ -164,7 +177,7 @@ pub fn execute_plan(
         return Ok(ExecutionOutcome::NothingToInstall);
     }
 
-    print_plan(plan, out)?;
+    print_plan(plan, prior_verification, out)?;
 
     if dry_run {
         writeln!(out, "\nDry run complete. No changes were made.")?;
