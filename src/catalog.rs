@@ -2,6 +2,10 @@
 //!
 //! Keeps package names, accepted aliases, and executable checks together per platform.
 
+/// Monotonic revision identifier for the built-in tool catalog.
+/// Bump this whenever catalog entries, package mappings, or executable checks change.
+pub const CATALOG_REVISION: &str = "v1";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlatformPackageInfo {
     /// Package name passed to the package manager (e.g. "ripgrep", "fd", "fd-find")

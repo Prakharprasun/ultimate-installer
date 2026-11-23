@@ -210,6 +210,12 @@ where
         return Err(PlanError::NoToolsRequested);
     }
 
+    // Use the same canonical tool-ID ordering as InstallSpec so equivalent requests
+    // produce identical argv on identical machines.
+    let mut tools = tools;
+    tools.sort_by_key(|entry| entry.id);
+    tools.dedup_by_key(|entry| entry.id);
+
     let platform = resolve_platform(os, &has_bin)?;
 
     let mut already_installed = Vec::new();
@@ -358,8 +364,8 @@ mod tests {
                     "apt-get".to_string(),
                     "install".to_string(),
                     "-y".to_string(),
-                    "ripgrep".to_string(),
                     "fd-find".to_string(),
+                    "ripgrep".to_string(),
                 ],
             })
         );
