@@ -4,30 +4,43 @@ description: "Connect your LLM provider"
 order: 3
 ---
 
-Ultimate Installer uses a **Bring Your Own Key** (BYOK) architecture. We do not proxy API calls. You provide the keys, and the CLI talks directly to the provider of your choice.
+Ultimate Installer uses a **Bring Your Own Key** (BYOK) architecture. We do not proxy API calls. You provide the key, and the CLI talks directly to the provider's HTTPS endpoint.
 
-### 1. Set Your Keys
+### 1. Explicit Requests Need No API Key
 
-Set your API key via environment variables in your shell profile (e.g., `~/.bashrc` or `~/.zshrc`), a local `.env` file, or the global `~/.ultimate-installer/config.env` file. 
-
-Set at least one to get started:
+Exact catalog requests run completely locally without any API key:
 
 ```bash
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-export GEMINI_API_KEY=...
-export OPENROUTER_API_KEY=sk-or-...
-export GROQ_API_KEY=...
+ulti "install ripgrep and fd"
+ulti "install ripgrep and fd" --dry-run
 ```
 
-### 2. Using Local Models
+### 2. OpenAI Setup (for Descriptive Requests)
 
-Want to run everything offline and free? Perfect. The CLI auto-discovers models running via [Ollama](https://ollama.com). No token costs. 
+To use ordinary-language requests such as:
 
 ```bash
-export OLLAMA_BASE_URL=http://localhost:11434
+ulti "Set me up with ripgrep for searching text and fd for finding files"
 ```
 
-### 3. Key Cascade and Failover
+export your OpenAI API key:
 
-The CLI automatically handles **Key Resolution Cascade** (choosing the first available config level) and **API Key Rotation**. If an API key is rate-limited, the system seamlessly attempts your next provided key or falls back to an alternative provider.
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+- **Default / Tested Model**: `gpt-4o-mini` (via OpenAI's Structured Outputs `response_format: { type: "json_schema" }` interface).
+- **Optional Model Override**: Set `OPENAI_MODEL` (for example `export OPENAI_MODEL="gpt-4o-mini"`).
+- **Security Guarantees**:
+  - `OPENAI_API_KEY` is sent only to OpenAI's HTTPS endpoint (`https://api.openai.com/v1/chat/completions`).
+  - The key is redacted in debug output (`[REDACTED]`).
+  - Provider API keys are stripped from all child process environments (`brew`, `apt-get`, `sudo`, and verification commands).
+  - The model may only return canonical tool IDs from the local catalog or `unsupported`; model-generated commands, flags, URLs, or package-manager names are never accepted or executed.
+
+### 3. Roadmap (Not Yet Wired in This Build)
+
+The following provider features remain on the roadmap:
+
+- Additional providers (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`) and local Ollama auto-discovery
+- Automatic multi-key rotation and cross-provider failover
+- File-based key cascade (`.env`, `~/.ultimate-installer/config.env`, `config.json`)

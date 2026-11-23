@@ -4,8 +4,13 @@ description: "Your terminal, but it understands English."
 order: 0
 ---
 
-A high-performance, **Rust-powered** CLI that treats LLMs not as chatbots, but as **natural language compilers** — translating user intent directly into safe, executable shell scripts. 
+A **Rust-powered** CLI (`ulti`) that turns explicit or natural-language setup requests into safe, reviewed, verified package installations.
 
-By combining a Global Bloom Filter, a Universal Script Cache, and a multi-model pipeline, it creates a community-verified installation engine that gets faster and cheaper the more it's used.
+### What Works Today
 
-_Currently under active early development. Try the scaffolded CLI today._
+- **macOS (Homebrew) & Ubuntu (`apt-get`)**: Checks both the OS and the real package-manager executable before doing anything.
+- **Explicit Local Mode (No API Key)**: `ulti "install ripgrep and fd"` runs 100% locally, checks what's already installed, shows exact OS package names (`fd-find` / `fdfind` on Ubuntu, `fd` on macOS), and previews the exact command.
+- **Safety by Default**: `--dry-run` previews without changes; interactive installs require explicit `y`/`yes` approval, run Rust's `Command` directly, strip API keys from child environments, and verify every installed binary with `--version`.
+- **Descriptive Mode (OpenAI Structured Outputs)**: With `OPENAI_API_KEY`, requests like `ulti "Set me up with ripgrep for searching text and fd for finding files"` map through `gpt-4o-mini` into the exact same validated catalog plan — never model-generated shell commands.
+
+See [Install](/installation) to build and run from source, or check [Project Status](/whats-done) for what's shipped vs. on the roadmap.

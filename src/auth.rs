@@ -4,6 +4,7 @@
 //! and rotates on rate-limit errors. Inspired by OpenClaw's model-auth.ts.
 
 use std::collections::HashMap;
+use std::fmt;
 
 /// Supported LLM providers and their expected env var names.
 pub fn provider_env_map() -> HashMap<&'static str, &'static str> {
@@ -18,11 +19,43 @@ pub fn provider_env_map() -> HashMap<&'static str, &'static str> {
     m
 }
 
+/// Return all environment variable names (singular and plural) that may hold provider API keys.
+/// Used to strip sensitive credentials from child process environments.
+pub fn all_provider_env_vars() -> Vec<String> {
+    let mut vars = Vec::new();
+    for base in provider_env_map().values() {
+        vars.push((*base).to_string());
+        vars.push(format!("{base}S"));
+    }
+    vars.sort();
+    vars
+}
+
+/// Redact an API key for safe logging and debug output.
+pub fn redact_api_key(key: &str) -> String {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return "[EMPTY]".to_string();
+    }
+    "[REDACTED]".to_string()
+}
+
 /// Result of resolving an API key.
-#[derive(Debug, Clone)]
+///
+/// Implements a custom `Debug` that redacts `api_key` so secrets never appear in debug logs.
+#[derive(Clone)]
 pub struct ResolvedKey {
     pub api_key: String,
     pub source: String,
+}
+
+impl fmt::Debug for ResolvedKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ResolvedKey")
+            .field("api_key", &redact_api_key(&self.api_key))
+            .field("source", &self.source)
+            .finish()
+    }
 }
 
 /// Resolve an API key for a given provider using the cascade:
@@ -115,5 +148,24 @@ mod tests {
     fn collect_provider_keys_returns_empty_for_unknown() {
         let keys = collect_provider_keys("nonexistent_provider");
         assert!(keys.is_empty());
+    }
+
+    #[test]
+    fn resolved_key_debug_redacts_secret() {
+        let secret = "sk-super-secret-test-key-1234567890";
+        let resolved = ResolvedKey {
+            api_key: secret.to_string(),
+            source: "env: OPENAI_API_KEY".to_string(),
+        };
+        let debug_str = format!("{resolved:?}");
+        assert!(!debug_str.contains(secret));
+        assert!(debug_str.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn all_provider_env_vars_includes_openai_singular_and_plural() {
+        let vars = all_provider_env_vars();
+        assert!(vars.contains(&"OPENAI_API_KEY".to_string()));
+        assert!(vars.contains(&"OPENAI_API_KEYS".to_string()));
     }
 }
