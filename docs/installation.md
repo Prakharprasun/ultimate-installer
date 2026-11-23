@@ -1,25 +1,54 @@
 ---
 title: "Install"
-description: "Get the Ultimate Installer on your machine"
+description: "Build and run Ultimate Installer from source"
 order: 2
 ---
 
-### Standard Installation
+### Prerequisites
 
-Ultimate Installer is distributed through `crates.io`. Ensure you have the [Rust toolchain](https://rustup.rs/) installed, then run:
+- [Rust toolchain](https://rustup.rs/) (`cargo`, `rustc` — Rust 2024 edition)
+- **macOS**: [Homebrew](https://brew.sh) (`brew` on `PATH`)
+- **Ubuntu**: `apt-get` (and `sudo` when running as a non-root user)
+- **Windows**: Compiles cleanly and explains the currently supported install platforms.
+
+### Build from Source
 
 ```bash
-cargo install ultimate-installer
+git clone https://github.com/Prakharprasun/ultimate-installer.git
+cd ultimate-installer
+cargo build --release
 ```
-
-<install-copy-button command="cargo install ultimate-installer" />
 
 ### Usage
 
-Once installed, use the short `ulti` binary.
+Preview the installation plan without making any changes (no API key required):
 
 ```bash
-ulti "install neofetch"
+./target/release/ulti "install ripgrep and fd" --dry-run
 ```
 
-> **Note:** The LLM pipeline is currently under scaffolding and active development. While the CLI binary is available, commands may output placeholder messages. Check out what is currently working in [What's Done](/whats-done).
+Run interactively with approval prompt and post-install version verification:
+
+```bash
+./target/release/ulti "install ripgrep and fd"
+```
+
+Repeat the same command once installed — `ulti` detects both binaries and exits cleanly with nothing to install.
+
+### Descriptive Requests (Optional OpenAI Setup)
+
+```bash
+export OPENAI_API_KEY="sk-..."
+./target/release/ulti "Set me up with ripgrep for searching text and fd for finding files"
+```
+
+### Supported Catalog
+
+| Tool | Aliases | macOS (Homebrew) | Ubuntu (`apt-get`) |
+| --- | --- | --- | --- |
+| `ripgrep` | `ripgrep`, `rg` | package `ripgrep`, binary `rg` | package `ripgrep`, binary `rg` |
+| `fd` | `fd`, `fdfind`, `fd-find` | package `fd`, binary `fd` | package `fd-find`, binary `fdfind` |
+
+> **Ubuntu note:** Per upstream `fd` packaging, Ubuntu installs the binary as `fdfind` (due to a Debian naming collision with `fdclone`). `ulti` verifies `fdfind --version` and reminds you which command name to type.
+
+Check [API Key Setup](/api-keys) for provider configuration and [Project Status](/whats-done) for the roadmap.

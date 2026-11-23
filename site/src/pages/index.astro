@@ -14,8 +14,22 @@ const { Content } = await render(entry);
     <p style="font-size: 1.25rem; color: var(--text-color); max-width: 600px; margin: 0 auto; margin-bottom: 2rem;">{entry.data.description}</p>
     
     <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-        <a href="/installation" style="background-color: var(--accent-color); color: #000; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; text-decoration: none;">Install Ultimate Installer</a>
-        <a href="/how-it-works" style="background-color: var(--highlight-bg); color: var(--text-color); padding: 0.75rem 1.5rem; border-radius: 6px; outline: 1px solid var(--border-color); font-weight: 500; text-decoration: none;">Learn How Pipeline Works</a>
+        <a href="/installation" style="background-color: var(--accent-color); color: #000; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; text-decoration: none;">Build &amp; Run ulti</a>
+        <a href="/how-it-works" style="background-color: var(--highlight-bg); color: var(--text-color); padding: 0.75rem 1.5rem; border-radius: 6px; outline: 1px solid var(--border-color); font-weight: 500; text-decoration: none;">How It Works</a>
+    </div>
+
+    <div style="max-width: 650px; margin: 2.5rem auto 0; text-align: left;">
+      <pre><code>$ ulti "install ripgrep and fd" --dry-run
+Platform: Ubuntu (apt-get)
+
+Missing (will install):
+  • ripgrep -&gt; package 'ripgrep' (executable: 'rg')
+  • fd -&gt; package 'fd-find' (executable: 'fdfind')
+
+Command to run:
+  sudo apt-get install -y ripgrep fd-find
+
+Dry run complete. No changes were made.</code></pre>
     </div>
   </div>
   
