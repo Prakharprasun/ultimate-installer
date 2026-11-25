@@ -69,6 +69,8 @@ jobs:
           if (-not ($output -match "macOS" -and $output -match "Ubuntu")) {
             throw "Expected supported platforms message on Windows"
           }
+          $global:LASTEXITCODE = 0
+          exit 0
 
   demo-e2e:
     name: Live Demo E2E (${{ matrix.os }})

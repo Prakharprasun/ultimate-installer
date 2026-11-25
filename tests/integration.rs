@@ -49,6 +49,20 @@ fn hash_of_probed_state_is_deterministic() {
     assert_eq!(h1, h2, "hash of probed state must be deterministic");
 }
 
+#[cfg(windows)]
+#[test]
+fn windows_cli_reports_supported_platforms_and_exits_nonzero() {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_ulti"))
+        .args(["install ripgrep and fd", "--dry-run"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("Windows"));
+    assert!(stderr.contains("macOS"));
+    assert!(stderr.contains("Ubuntu"));
+}
+
 /// Spawn a minimal single-request HTTP/1.1 test double on loopback and return its URL and a
 /// receiver for the captured raw HTTP request.
 async fn spawn_mock_openai_server(
