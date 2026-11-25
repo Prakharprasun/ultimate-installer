@@ -59,9 +59,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $output = & ./target/debug/ulti.exe "install ripgrep and fd" --dry-run 2>&1
+          $ErrorActionPreference = 'Continue'
+          $output = (& ./target/debug/ulti.exe "install ripgrep and fd" --dry-run 2>&1 | Out-String)
+          $code = $LASTEXITCODE
           Write-Host $output
-          if ($LASTEXITCODE -eq 0) {
+          if ($code -eq 0) {
             throw "Expected non-zero exit code on Windows"
           }
           if (-not ($output -match "macOS" -and $output -match "Ubuntu")) {
@@ -85,21 +87,26 @@ jobs:
           key: e2e-${{ matrix.os }}
       - name: Build release binary
         run: cargo build --release
-      - name: Run live Ubuntu demo flow
+      - name: Run live Ubuntu 30-second demo flow (rg pre-installed -> proposes only fd-find)
         if: matrix.os == 'ubuntu-latest'
         run: |
           echo "=== OS Version ==="
           cat /etc/os-release
-          echo "=== Refresh apt index (disposable runner) ==="
+          echo "=== Setup: pre-install ripgrep (rg) only ==="
           sudo apt-get update -qq
+          sudo apt-get install -y -qq ripgrep
+          sudo apt-get remove -y -qq fd-find || true
           echo "=== Initial Tool State ==="
-          which rg fdfind || true
-          echo "=== Dry Run Preview ==="
-          ./target/release/ulti "install ripgrep and fd" --dry-run
+          rg --version
+          which fdfind || echo "fdfind not installed"
+          echo "=== Dry Run Preview (must propose ONLY fd-find) ==="
+          PREVIEW=$(./target/release/ulti "install ripgrep and fd" --dry-run)
+          echo "$PREVIEW"
+          echo "$PREVIEW" | grep -q "sudo apt-get install -y fd-find"
+          ! echo "$PREVIEW" | grep -q "sudo apt-get install -y fd-find ripgrep"
           echo "=== Approved Install ==="
           printf 'y\n' | ./target/release/ulti "install ripgrep and fd"
-          echo "=== Verified Binaries ==="
-          rg --version
+          echo "=== Verified Binary ==="
           fdfind --version
           echo "=== Repeat Run (Nothing to Install) ==="
           ./target/release/ulti "install ripgrep and fd"

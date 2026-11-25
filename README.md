@@ -1,18 +1,35 @@
 # Ultimate Installer (`ulti`)
 
-A **Rust-powered** CLI that turns explicit or natural-language setup requests into safe, reviewed, verified package installations.
+> **Deterministic AI compiler for safe CLI installs.**  
+> 🌐 Website: [https://ultimate-installer.vercel.app](https://ultimate-installer.vercel.app)
+
+A **Rust-powered** CLI (`ulti`) that compiles explicit or natural-language setup requests into a canonical, versioned `InstallSpec` (SHA-256 hashed), checks what is already installed on the machine, previews the exact OS package-manager command, requires explicit approval, verifies the installed binaries, and records verified runs in a local SQLite cache.
 
 ---
 
-## Quick Start (Build & Run from Source)
+## Quick Start
 
-### Prerequisites
+### Option A: Download Prebuilt Binaries (macOS & Ubuntu)
+
+Download the latest archive from [GitHub Releases](https://github.com/Prakharprasun/ultimate-installer/releases/latest):
+
+```bash
+# macOS (Apple Silicon)
+curl -fsSLO https://github.com/Prakharprasun/ultimate-installer/releases/latest/download/ulti-macos-arm64.tar.gz
+tar xzf ulti-macos-arm64.tar.gz && chmod +x ulti && ./ulti "install ripgrep and fd" --dry-run
+
+# Ubuntu (Linux x86_64)
+curl -fsSLO https://github.com/Prakharprasun/ultimate-installer/releases/latest/download/ulti-linux-x86_64.tar.gz
+tar xzf ulti-linux-x86_64.tar.gz && chmod +x ulti && ./ulti "install ripgrep and fd" --dry-run
+```
+
+### Option B: Build & Run from Source
+
+#### Prerequisites
 - Rust toolchain (`cargo`, `rustc` — Rust 2024 edition)
 - **macOS**: [Homebrew](https://brew.sh) (`brew` on `PATH`)
 - **Ubuntu**: `apt-get` (and `sudo` when running as a non-root user)
 - *(Windows compiles cleanly and reports the supported install platforms.)*
-
-### Build & Run
 
 ```bash
 git clone https://github.com/Prakharprasun/ultimate-installer.git
@@ -27,6 +44,34 @@ cargo build --release
 
 # Or run directly via cargo:
 cargo run -- "install ripgrep and fd" --dry-run
+```
+
+### 30-Second Ubuntu Demo (`rg` Already Installed)
+
+On an Ubuntu machine where `rg` (`ripgrep`) is already present, asking for both `ripgrep` and `fd` detects `rg`, proposes **only** Ubuntu's `fd-find` package, requires approval, and verifies `fdfind`:
+
+```text
+$ ulti "install ripgrep and fd"
+Platform: Ubuntu (apt-get)
+
+Already installed:
+  ✓ ripgrep (rg) — ripgrep 14.1.0
+
+Missing (will install):
+  • fd -> package 'fd-find' (executable: 'fdfind')
+    Note: On Ubuntu, the binary is installed as 'fdfind' (due to a Debian binary name collision with fdclone). You can run it with `fdfind` or create an alias (`alias fd=fdfind`).
+
+Command to run:
+  sudo apt-get install -y fd-find
+
+Proceed with installation? [y/N]: y
+Running: sudo apt-get install -y fd-find
+
+Verification:
+  ✓ fd (fdfind) — fdfind 9.0.0
+  ✓ ripgrep (rg) — ripgrep 14.1.0
+
+All requested tools are installed and verified.
 ```
 
 ### Supported Catalog (Current Build)
@@ -395,9 +440,59 @@ Rust forces explicit handling of every error case that TypeScript papers over. O
 
 ---
 
+## Project FAQ & Overview
+
+### Describe what it does in 50 characters or less.
+Deterministic AI compiler for safe CLI installs.
+
+### URL
+https://ultimate-installer.vercel.app
+
+### Describe the product and what it does or will do.
+Ultimate Installer (`ulti`) is a single-binary Rust CLI that turns explicit or natural-language setup requests into safe, deterministic, verified package installations across macOS and Linux.
+
+**What works today:** `ulti` compiles a request into a versioned canonical `InstallSpec` (hashed with SHA-256), probes the host OS, package manager, and already-installed binaries, plans only what is missing, previews the exact command (`--dry-run` supported), requires explicit user approval, executes directly via Rust's `Command` with API keys stripped from child environments, verifies every binary with `--version`, and records verified runs in a persistent local SQLite cache. Descriptive natural-language requests resolve through OpenAI Structured Outputs (`gpt-4o-mini`) into canonical catalog tool IDs—models never generate or execute arbitrary shell commands—and verified descriptive requests replay locally with zero API calls.
+
+**Where it is going:** Expanding the verified tool catalog and OS coverage, then layering a shared community registry (with Bloom-filter fast lookups and state-aware caching) and a multi-model self-healing loop for complex, multi-step developer environments.
+
+### How far along are you?
+We have a working, tested Rust CLI (`ulti`) with macOS (Homebrew) and Ubuntu (`apt-get`) support, a canonical `InstallSpec` + SHA-256 deterministic hashing layer, a persistent local SQLite verification cache, an OpenAI Structured Outputs adapter for descriptive requests, 68 passing automated tests (unit + CLI boundary + mock provider), and cross-platform GitHub Actions CI/CD building downloadable macOS and Ubuntu binaries. We are now running live user sessions with developers to expand the catalog based on real setup requests.
+
+### How long have you been working on this? How much of that has been full-time?
+I have been building the core architecture and Rust implementation for **7 months part-time (~20 hours/week)** alongside my coursework and machine learning research at **BITS Pilani** and **NTNU**. The foundational work on deterministic AI code compilation started **11 months ago** during the Google DeepMind Hackathon with [NeuroSmith](https://www.kaggle.com/competitions/gemini-3/writeups/neurosmith-a-deterministic-multimodal-neural-netw) ([GitHub](https://github.com/Prakharprasun/neurosmith-architect/)).
+
+### What tech stack are you using, or planning to use, to build this product? Include AI models and AI coding tools you use.
+- **Core CLI (shipped):** Rust (`clap` for CLI parsing, `tokio` and `reqwest` for async HTTPS provider calls, `sysinfo` and `which` for OS/hardware/binary probing, `serde`/`serde_json` + `sha2` for canonical `InstallSpec` serialization and SHA-256 hashing, bundled `rusqlite` for the persistent local SQLite cache, and `seahash` for machine fingerprinting).
+- **AI models:** Shipped with OpenAI `gpt-4o-mini` via strict Structured Outputs (`json_schema`) to map descriptive requests strictly to canonical catalog IDs. Planned additions include additional providers (Anthropic, Gemini, Groq, local Ollama) and higher-reasoning models for complex multi-step setup scripts and self-healing retries.
+- **Planned infrastructure:** Shared community registry with Redis/Bloom-filter fast lookups and `similar`-powered diff previews for file edits.
+- **Development tools:** Neovim, VS Code, PyCharm, Antigravity IDE, and GitHub Copilot.
+
+### Do you have revenue?
+No — Ultimate Installer is open source (AGPL-3.0) and free to use while we validate developer adoption and expand the verified catalog.
+
+### Why did you pick this idea to work on? Do you have domain expertise in this area? How do you know people need what you're making?
+I have spent the past year building deterministic AI developer tools. In December 2025, I placed in the **Top 50 out of 4,097 global submissions** in the **Google DeepMind Gemini 3 Pro Hackathon** (winning **\$10,000 in API credits**) for **NeuroSmith**, a multimodal studio that compiles sketches, controls, and voice input into a strict `MODEL_SPEC` to generate runnable, hallucination-free PyTorch and TensorFlow code.
+
+Through building NeuroSmith, contributing bug fixes to Google's open-source **JAX** library, and running ML experiments across macOS laptops and Linux clusters at **BITS Pilani** and **NTNU**, I repeatedly hit the same bottleneck: writing code is no longer what slows teams down—getting tools, system packages, and environments to install cleanly across machines is. Developers routinely lose hours to OS-specific package-name mismatches (like `fd` on macOS vs. `fd-find`/`fdfind` on Ubuntu), partial installs, and fragile copy-pasted scripts. NeuroSmith proved that wrapping LLMs inside strict, deterministic specs earns developer trust; Ultimate Installer brings that exact compiler architecture to machine setup.
+
+### Who are your competitors? What do you understand about your business that they don't?
+Our competitors fall into two camps: **terminal AI assistants** (such as Warp AI and GitHub Copilot CLI) and **traditional environment/package managers** (such as Homebrew, Nix, and Docker).
+
+Terminal AI chatbots treat installation as open-ended text generation: every user burns tokens generating an unverified shell snippet from scratch that often breaks on their specific OS, architecture, or partial machine state. Traditional tools like Nix are deterministic and reproducible, but impose a steep configuration-language learning curve.
+
+The insight from NeuroSmith is that developers do not want raw LLM shell generation—they want **deterministic compilation with human-in-the-loop verification**. Ultimate Installer separates intent resolution from execution: inputs compile into a canonical `InstallSpec` keyed to the machine's actual OS, architecture, and package manager, only missing items are planned, and every verified install is cached locally (and eventually across a shared registry) so once a setup works, nobody has to spend tokens or debug that install again.
+
+### Have you taken any investment yet?
+No.
+
+### Are you currently fundraising?
+No.
+
+---
+
 ## Status
 
-> **Working Demo Built** — Explicit local install workflow (`ripgrep` and `fd`) on macOS (Homebrew) and Ubuntu (`apt-get`), `--dry-run`, explicit approval, post-install binary verification, OpenAI Structured Outputs (`gpt-4o-mini`) for descriptive requests, and automated unit + CLI boundary + provider test-double test suite. Shared registry, four-model pipeline, automatic key rotation, and additional providers remain on the roadmap.
+> **Working Demo + Local SQLite Cache Built** — Canonical `InstallSpec` + SHA-256 deterministic hashing, persistent local SQLite verification cache, explicit local install workflow (`ripgrep` and `fd`) on macOS (Homebrew) and Ubuntu (`apt-get`), `--dry-run`, explicit approval, post-install binary verification, OpenAI Structured Outputs (`gpt-4o-mini`) for descriptive requests, 68 passing tests, and GitHub Actions CI/Release pipelines. Shared registry, Redis/Bloom filter, four-model pipeline, automatic key rotation, and additional providers remain on the roadmap.
 
 - 📦 Repo: [github.com/Prakharprasun/ultimate-installer](https://github.com/Prakharprasun/ultimate-installer)
 - 📜 License: [AGPL-3.0](./LICENSE)

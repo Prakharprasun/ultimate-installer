@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'   # triggers on v0.1.0, v1.2.3, etc.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,7 +27,7 @@ jobs:
             archive: ulti-macos-arm64.tar.gz
 
           - target: x86_64-apple-darwin
-            runner: macos-13              # last Intel GitHub runner
+            runner: macos-latest
             archive: ulti-macos-x86_64.tar.gz
 
           - target: x86_64-pc-windows-msvc
@@ -64,7 +65,12 @@ jobs:
 
       - name: Generate checksum (Unix)
         if: runner.os != 'Windows'
-        run: sha256sum ${{ matrix.archive }} > ${{ matrix.archive }}.sha256
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum ${{ matrix.archive }} > ${{ matrix.archive }}.sha256
+          else
+            shasum -a 256 ${{ matrix.archive }} > ${{ matrix.archive }}.sha256
+          fi
 
       - name: Generate checksum (Windows)
         if: runner.os == 'Windows'
@@ -83,6 +89,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build-release
     runs-on: ubuntu-latest
     permissions:
@@ -98,8 +105,46 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true    # auto-generates changelog from commits
+          generate_release_notes: true
           files: |
             *.tar.gz
             *.zip
             *.sha256
+
+  verify-published-binaries:
+    name: Verify README Download (${{ matrix.os }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - name: Test README Ubuntu binary download + 30s rg/fd-find flow
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ripgrep
+          sudo apt-get remove -y -qq fd-find || true
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ulti-linux-x86_64.tar.gz
+          tar xzf ulti-linux-x86_64.tar.gz && chmod +x ulti
+          ./ulti --version
+          ./ulti "install ripgrep and fd" --dry-run
+          printf 'y\n' | ./ulti "install ripgrep and fd"
+          fdfind --version
+          ./ulti "install ripgrep and fd"
+
+      - name: Test README macOS binary download + flow
+        if: matrix.os == 'macos-latest'
+        run: |
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ulti-macos-arm64.tar.gz
+          tar xzf ulti-macos-arm64.tar.gz && chmod +x ulti
+          ./ulti --version
+          ./ulti "install ripgrep and fd" --dry-run
+          printf 'y\n' | ./ulti "install ripgrep and fd"
+          rg --version
+          fd --version
+          ./ulti "install ripgrep and fd"

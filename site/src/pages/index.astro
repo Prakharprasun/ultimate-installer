@@ -19,17 +19,24 @@ const { Content } = await render(entry);
     </div>
 
     <div style="max-width: 650px; margin: 2.5rem auto 0; text-align: left;">
-      <pre><code>$ ulti "install ripgrep and fd" --dry-run
+      <pre><code>$ ulti "install ripgrep and fd"
 Platform: Ubuntu (apt-get)
 
+Already installed:
+  ✓ ripgrep (rg) — ripgrep 14.1.0
+
 Missing (will install):
-  • ripgrep -&gt; package 'ripgrep' (executable: 'rg')
   • fd -&gt; package 'fd-find' (executable: 'fdfind')
 
 Command to run:
-  sudo apt-get install -y ripgrep fd-find
+  sudo apt-get install -y fd-find
 
-Dry run complete. No changes were made.</code></pre>
+Proceed with installation? [y/N]: y
+Running: sudo apt-get install -y fd-find
+
+Verification:
+  ✓ fd (fdfind) — fdfind 9.0.0
+  ✓ ripgrep (rg) — ripgrep 14.1.0</code></pre>
     </div>
   </div>
   
